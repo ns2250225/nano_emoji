@@ -191,7 +191,7 @@ const handleGenerate = async () => {
         'Authorization': 'Bearer sk-b7182e2c0c3248b6aafcedad465af768'
       },
       body: JSON.stringify({
-        model: 'nano-banana-pro',
+        model: 'nano-banana-pro-vt',
         prompt: prompt,
         aspectRatio: '16:9',
         imageSize: '1K',
