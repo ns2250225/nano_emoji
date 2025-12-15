@@ -3,19 +3,19 @@
     <el-container class="main-container">
       <!-- Left Panel -->
       <el-aside width="400px" class="left-panel">
-        <el-card>
+        <el-card class="neu-card">
           <template #header>
             <div class="card-header">
-              <span>Configuration</span>
+              <span class="header-title">配置</span>
             </div>
           </template>
           
           <el-form label-position="top">
-            <el-form-item label="Subject Keyword">
-              <el-input v-model="subject" placeholder="Enter subject (e.g., Cat)" />
+            <el-form-item label="主题关键词">
+              <el-input v-model="subject" placeholder="输入主题 (例如: 股票)" class="neu-input" />
             </el-form-item>
 
-            <el-form-item label="Reference Character Image">
+            <el-form-item label="参考角色图">
               <el-upload
                 class="upload-demo"
                 action="#"
@@ -25,23 +25,22 @@
                 :file-list="fileList"
                 list-type="picture"
               >
-                <el-button type="primary">Select Image</el-button>
+                <el-button class="neu-button secondary">选择图片</el-button>
                 <template #tip>
                   <div class="el-upload__tip">
-                    jpg/png files with a size less than 500kb
+                    jpg/png 文件，大小不超过 500kb
                   </div>
                 </template>
               </el-upload>
             </el-form-item>
 
             <el-button 
-              type="primary" 
-              class="generate-btn" 
+              class="neu-button primary generate-btn" 
               @click="handleGenerate" 
               :loading="loading"
               :disabled="!subject || !uploadedFile"
             >
-              Start Generating
+              开始生成
             </el-button>
 
             <el-alert
@@ -49,7 +48,7 @@
               :title="error"
               type="error"
               show-icon
-              class="error-alert"
+              class="error-alert neu-alert"
               @close="error = ''"
             />
           </el-form>
@@ -58,46 +57,48 @@
 
       <!-- Right Panel -->
       <el-main class="right-panel">
-        <el-card class="result-card">
+        <el-card class="result-card neu-card">
           <template #header>
             <div class="card-header">
-              <span>Result & Slicing</span>
+              <span class="header-title">结果与切割</span>
               <div class="controls" v-if="resultUrl">
-                <el-button size="small" @click="addHLine">Add H-Line</el-button>
-                <el-button size="small" @click="addVLine">Add V-Line</el-button>
-                <el-button size="small" type="success" @click="sliceAndDownload">Slice & Download</el-button>
+                <el-button class="neu-button small" size="small" @click="addHLine">添加水平线</el-button>
+                <el-button class="neu-button small" size="small" @click="addVLine">添加垂直线</el-button>
+                <el-button class="neu-button success small" size="small" @click="sliceAndDownload">切割并下载</el-button>
               </div>
             </div>
           </template>
 
-          <div class="image-container" v-if="resultUrl" ref="imageContainer">
-            <img :src="resultUrl" ref="resultImage" class="result-image" @load="initSlicing" crossorigin="anonymous"/>
-            
-            <!-- Horizontal Lines -->
-            <div
-              v-for="(line, index) in hLines"
-              :key="'h-' + index"
-              class="line h-line"
-              :style="{ top: line + 'px' }"
-              @mousedown="startDrag('h', index, $event)"
-            >
-              <div class="line-handle"></div>
-            </div>
+          <div class="image-container-wrapper">
+            <div class="image-container" v-if="resultUrl" ref="imageContainer">
+              <img :src="resultUrl" ref="resultImage" class="result-image" @load="initSlicing" crossorigin="anonymous"/>
+              
+              <!-- Horizontal Lines -->
+              <div
+                v-for="(line, index) in hLines"
+                :key="'h-' + index"
+                class="line h-line"
+                :style="{ top: line + 'px' }"
+                @mousedown="startDrag('h', index, $event)"
+              >
+                <div class="line-handle"></div>
+              </div>
 
-            <!-- Vertical Lines -->
-            <div
-              v-for="(line, index) in vLines"
-              :key="'v-' + index"
-              class="line v-line"
-              :style="{ left: line + 'px' }"
-              @mousedown="startDrag('v', index, $event)"
-            >
-              <div class="line-handle"></div>
+              <!-- Vertical Lines -->
+              <div
+                v-for="(line, index) in vLines"
+                :key="'v-' + index"
+                class="line v-line"
+                :style="{ left: line + 'px' }"
+                @mousedown="startDrag('v', index, $event)"
+              >
+                <div class="line-handle"></div>
+              </div>
             </div>
-          </div>
-          
-          <div v-else class="placeholder">
-            <el-empty description="Generated image will appear here" />
+            
+            <div v-else class="placeholder">
+              <el-empty description="生成的图片将显示在这里" />
+            </div>
           </div>
         </el-card>
       </el-main>
@@ -157,10 +158,10 @@ const uploadImage = async () => {
     if (response.data && response.data.success) {
       return response.data.url
     } else {
-      throw new Error('Upload failed')
+      throw new Error('上传失败')
     }
   } catch (err: any) {
-    throw new Error('Image upload failed: ' + err.message)
+    throw new Error('图片上传失败: ' + err.message)
   }
 }
 
@@ -177,7 +178,7 @@ const handleGenerate = async () => {
       if (url) {
         uploadedUrl.value = url
       } else {
-        throw new Error('Failed to get uploaded image URL')
+        throw new Error('获取上传图片URL失败')
       }
     }
 
@@ -191,7 +192,7 @@ const handleGenerate = async () => {
         'Authorization': 'Bearer sk-b7182e2c0c3248b6aafcedad465af768'
       },
       body: JSON.stringify({
-        model: 'nano-banana-pro-vt',
+        model: 'nano-banana-pro',
         prompt: prompt,
         aspectRatio: '16:9',
         imageSize: '1K',
@@ -200,10 +201,10 @@ const handleGenerate = async () => {
     })
 
     if (!response.ok) {
-      throw new Error(`Generation API Error: ${response.status} ${response.statusText}`)
+      throw new Error(`生成API错误: ${response.status} ${response.statusText}`)
     }
 
-    if (!response.body) throw new Error('ReadableStream not supported.')
+    if (!response.body) throw new Error('不支持流式传输。')
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -228,7 +229,7 @@ const handleGenerate = async () => {
               resultUrl.value = data.results[0].url
             }
             if (data.status === 'failed') {
-               throw new Error(data.failure_reason || data.error || 'Generation failed')
+               throw new Error(data.failure_reason || data.error || '生成失败')
             }
           } catch (e) {
             console.warn('Parse error for chunk:', jsonStr, e)
@@ -371,14 +372,32 @@ const sliceAndDownload = async () => {
   if (count > 0) {
     const content = await zip.generateAsync({ type: 'blob' })
     saveAs(content, `meme_slices_${Date.now()}.zip`)
-    ElMessage.success('Download started!')
+    ElMessage.success('开始下载！')
   } else {
-    ElMessage.warning('No slices generated')
+    ElMessage.warning('未生成切割图片')
   }
 }
 </script>
 
 <style scoped>
+/* Neu-Brutalism Variables */
+:root {
+  --neu-border: 3px solid #000;
+  --neu-shadow: 4px 4px 0px 0px #000;
+  --neu-radius: 0px;
+  --neu-bg: #fff;
+  --neu-primary: #FFEB3B; /* Yellow */
+  --neu-secondary: #00BCD4; /* Cyan */
+  --neu-success: #4CAF50; /* Green */
+  --neu-danger: #F44336; /* Red */
+}
+
+.meme-generator {
+  background-color: #f0f0f0;
+  min-height: 100vh;
+  font-family: 'Courier New', Courier, monospace; /* Monospace for brutalist feel */
+}
+
 .main-container {
   height: 100vh;
   padding: 20px;
@@ -394,27 +413,132 @@ const sliceAndDownload = async () => {
   overflow: hidden;
 }
 
+/* Neu-Brutalism Card */
+.neu-card {
+  border: 3px solid #000 !important;
+  box-shadow: 4px 4px 0px 0px #000 !important;
+  border-radius: 0 !important;
+  background-color: #fff;
+  transition: all 0.2s ease;
+}
+
+.neu-card :deep(.el-card__header) {
+  border-bottom: 3px solid #000 !important;
+  background-color: #FFEB3B; /* Header background */
+  padding: 15px 20px;
+}
+
+.header-title {
+  font-weight: 900;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
 .result-card {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
+.result-card :deep(.el-card__header) {
+  background-color: #00BCD4; /* Different header color for result */
+}
+
 .result-card :deep(.el-card__body) {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #f0f2f5;
+  background: #fff;
   padding: 20px;
+  position: relative;
+}
+
+.image-container-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Neu-Brutalism Inputs */
+:deep(.el-input__wrapper) {
+  border: 2px solid #000 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 5px 10px;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 4px 4px 0px 0px #000 !important;
+}
+
+/* Neu-Brutalism Buttons */
+.neu-button {
+  border: 2px solid #000 !important;
+  border-radius: 0 !important;
+  box-shadow: 3px 3px 0px 0px #000 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  transition: all 0.1s ease !important;
+}
+
+.neu-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px #000 !important;
+}
+
+.neu-button.primary {
+  background-color: #FFEB3B !important;
+}
+
+.neu-button.primary:hover {
+  background-color: #FFF176 !important;
+}
+
+.neu-button.secondary {
+  background-color: #fff !important;
+}
+
+.neu-button.secondary:hover {
+  background-color: #f0f0f0 !important;
+}
+
+.neu-button.success {
+  background-color: #4CAF50 !important;
+  color: #fff !important;
+}
+
+.neu-button.success:hover {
+  background-color: #66BB6A !important;
+}
+
+.neu-button.small {
+  padding: 8px 15px !important;
+  font-size: 12px !important;
+}
+
+/* Neu-Brutalism Alert */
+.neu-alert {
+  border: 2px solid #000;
+  border-radius: 0;
+  background-color: #FFCDD2 !important; /* Light Red */
+  color: #000 !important;
+  box-shadow: 3px 3px 0px 0px #000;
 }
 
 .image-container {
   position: relative;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  display: inline-block; /* Fit content */
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0px 0px #000;
+  display: inline-block;
   max-width: 100%;
+  background: #fff;
 }
 
 .result-image {
@@ -427,27 +551,30 @@ const sliceAndDownload = async () => {
 
 .line {
   position: absolute;
-  background-color: #ff4081;
+  background-color: #000; /* Black lines for Brutalism */
   z-index: 10;
 }
 
 .h-line {
   left: 0;
   right: 0;
-  height: 2px;
+  height: 4px; /* Thicker lines */
   cursor: ns-resize;
+  border-top: 1px solid #fff; /* Contrast */
+  border-bottom: 1px solid #fff;
 }
 
 .v-line {
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 4px; /* Thicker lines */
   cursor: ew-resize;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #fff;
 }
 
 .line:hover {
-  background-color: #f50057;
-  box-shadow: 0 0 5px rgba(255, 64, 129, 0.8);
+  background-color: #FF4081; /* Highlight color */
 }
 
 .card-header {
@@ -459,6 +586,8 @@ const sliceAndDownload = async () => {
 .generate-btn {
   width: 100%;
   margin-top: 20px;
+  height: 50px;
+  font-size: 18px;
 }
 
 .error-alert {
