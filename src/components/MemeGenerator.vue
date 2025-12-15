@@ -70,7 +70,7 @@
           </template>
 
           <div class="image-container-wrapper">
-            <div class="image-container" v-if="resultUrl" ref="imageContainer">
+            <div class="image-container" v-if="resultUrl">
               <img :src="resultUrl" ref="resultImage" class="result-image" @load="initSlicing" crossorigin="anonymous"/>
               
               <!-- Horizontal Lines -->
@@ -107,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive } from 'vue'
 import axios from 'axios'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -121,7 +121,6 @@ const resultUrl = ref('')
 const loading = ref(false)
 const error = ref('')
 
-const imageContainer = ref<HTMLElement | null>(null)
 const resultImage = ref<HTMLImageElement | null>(null)
 
 // Slicing State
@@ -350,10 +349,10 @@ const sliceAndDownload = async () => {
   
   for (let i = 0; i < yPoints.length - 1; i++) {
     for (let j = 0; j < xPoints.length - 1; j++) {
-      const x = xPoints[j]
-      const y = yPoints[i]
-      const w = xPoints[j+1] - x
-      const h = yPoints[i+1] - y
+      const x = xPoints[j]!
+      const y = yPoints[i]!
+      const w = xPoints[j+1]! - x
+      const h = yPoints[i+1]! - y
       
       if (w <= 0 || h <= 0) continue
       
