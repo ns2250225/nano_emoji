@@ -53,6 +53,36 @@
             />
           </el-form>
         </el-card>
+
+        <!-- History Section -->
+        <el-card class="neu-card history-card" style="margin-top: 20px;">
+          <template #header>
+            <div class="card-header">
+              <span class="header-title">历史记录</span>
+            </div>
+          </template>
+          <div class="history-list">
+            <el-empty v-if="historyList.length === 0" description="暂无历史记录" />
+            <div 
+              v-for="item in historyList" 
+              :key="item.id" 
+              class="history-item"
+              @click="loadFromHistory(item)"
+            >
+              <div class="history-info">
+                <span class="history-subject">{{ item.subject }}</span>
+                <span class="history-date">{{ new Date(item.createdAt).toLocaleString() }}</span>
+              </div>
+              <el-button 
+                class="neu-button danger small" 
+                size="small" 
+                @click.stop="deleteHistory(item.id!)"
+              >
+                删除
+              </el-button>
+            </div>
+          </div>
+        </el-card>
       </el-aside>
 
       <!-- Right Panel -->
@@ -107,11 +137,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import axios from 'axios'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { ElMessage } from 'element-plus'
+import { saveMemeToHistory, getMemeHistory, deleteMemeFromHistory } from '../utils/db'
 
 const subject = ref('')
 const fileList = ref<any[]>([])
@@ -122,6 +153,34 @@ const loading = ref(false)
 const error = ref('')
 
 const resultImage = ref<HTMLImageElement | null>(null)
+
+// History State
+const historyList = ref<any[]>([])
+
+const refreshHistory = async () => {
+  historyList.value = (await getMemeHistory()).reverse()
+}
+
+onMounted(() => {
+  refreshHistory()
+})
+
+const loadFromHistory = (item: any) => {
+  if (resultUrl.value && resultUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(resultUrl.value)
+  }
+  resultUrl.value = URL.createObjectURL(item.blob)
+  subject.value = item.subject
+  // Reset lines
+  hLines.value = []
+  vLines.value = []
+}
+
+const deleteHistory = async (id: number) => {
+  await deleteMemeFromHistory(id)
+  await refreshHistory()
+  ElMessage.success('已删除历史记录')
+}
 
 // Slicing State
 const hLines = ref<number[]>([])
@@ -249,6 +308,18 @@ const handleGenerate = async () => {
         } catch (e) {
           console.warn('Parse error for final chunk:', jsonStr, e)
         }
+      }
+    }
+
+    // Save to History
+    if (resultUrl.value) {
+      try {
+        const imageRes = await fetch(resultUrl.value)
+        const blob = await imageRes.blob()
+        await saveMemeToHistory(blob, subject.value)
+        await refreshHistory()
+      } catch (e) {
+        console.error('Failed to save history:', e)
       }
     }
 
@@ -591,6 +662,57 @@ const sliceAndDownload = async () => {
 
 .error-alert {
   margin-top: 20px;
+}
+
+.history-card {
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-card :deep(.el-card__body) {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border: 2px solid #000;
+  cursor: pointer;
+  background-color: #fff;
+  transition: all 0.2s;
+}
+
+.history-item:hover {
+  background-color: #f0f0f0;
+  transform: translate(-2px, -2px);
+  box-shadow: 2px 2px 0px 0px #000;
+}
+
+.history-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-subject {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.history-date {
+  font-size: 12px;
+  color: #666;
 }
 
 .placeholder {
