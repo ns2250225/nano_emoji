@@ -94,6 +94,7 @@
               <div class="controls" v-if="resultUrl">
                 <el-button class="neu-button small" size="small" @click="addHLine">添加水平线</el-button>
                 <el-button class="neu-button small" size="small" @click="addVLine">添加垂直线</el-button>
+                <el-button class="neu-button danger small" size="small" @click="resetLines">重置分隔线</el-button>
                 <el-button class="neu-button success small" size="small" @click="sliceAndDownload">切割并下载</el-button>
               </div>
             </div>
@@ -138,7 +139,6 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import axios from 'axios'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { ElMessage } from 'element-plus'
@@ -200,29 +200,6 @@ const handleFileChange = (file: any) => {
   error.value = ''
 }
 
-const uploadImage = async () => {
-  if (!uploadedFile.value) return null
-  
-  const formData = new FormData()
-  formData.append('image', uploadedFile.value)
-
-  try {
-    const response = await axios.post('https://img.scdn.io//api/v1.php', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-    
-    if (response.data && response.data.success) {
-      return response.data.url
-    } else {
-      throw new Error('上传失败')
-    }
-  } catch (err: any) {
-    throw new Error('图片上传失败: ' + err.message)
-  }
-}
-
 const handleGenerate = async () => {
   loading.value = true
   error.value = ''
@@ -230,85 +207,88 @@ const handleGenerate = async () => {
   vLines.value = []
   
   try {
-    // 1. Upload Image
-    if (!uploadedUrl.value) {
-      const url = await uploadImage()
-      if (url) {
-        uploadedUrl.value = url
+    if (!uploadedFile.value) {
+      throw new Error('请选择参考图片')
+    }
+
+    // 1. Convert File to Base64
+    const base64Image = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result.split(',')[1]
+        if (base64) {
+          resolve(base64)
+        } else {
+          reject(new Error('Failed to parse base64'))
+        }
+      }
+      reader.onerror = reject
+      if (uploadedFile.value) {
+        reader.readAsDataURL(uploadedFile.value)
       } else {
-        throw new Error('获取上传图片URL失败')
+        reject(new Error('No file selected'))
+      }
+    })
+
+    // 2. Prepare Payload
+    const prompt = `为我生成图中角色的绘制 Q 版的，LINE 风格的半身像表情包，注意头饰要正确，彩色手绘风格，使用 4x6 布局，涵盖各种各样的关于【${subject.value}】的语句，或是一些有关【${subject.value}】的 meme，其他需求：不要原图复制。所有标注为手写简体中文。`
+    
+    const payload = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: uploadedFile.value.type || 'image/jpeg',
+              data: base64Image
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+        imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "1K"
+        }
       }
     }
 
-    // 2. Generate Image
-    const prompt = `为我生成图中角色的绘制 Q 版的，LINE 风格的半身像表情包，注意头饰要正确，彩色手绘风格，使用 4x6 布局，涵盖各种各样的关于【${subject.value}】的语句，或是一些有关【${subject.value}】的 meme，其他需求：不要原图复制。所有标注为手写简体中文。`
-    
-    const response = await fetch('https://grsai.dakka.com.cn/v1/draw/nano-banana', {
+    // 3. Call API
+    const response = await fetch('https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer sk-b7182e2c0c3248b6aafcedad465af768'
+        'Authorization': 'Bearer sk-dwI0wRUeibzNWZYMDeA400D567354d85BdF3A8BfCeBc0aD3'
       },
-      body: JSON.stringify({
-        model: 'nano-banana-pro-vt',
-        prompt: prompt,
-        aspectRatio: '16:9',
-        imageSize: '1K',
-        urls: [uploadedUrl.value]
-      })
+      body: JSON.stringify(payload)
     })
 
     if (!response.ok) {
       throw new Error(`生成API错误: ${response.status} ${response.statusText}`)
     }
 
-    if (!response.body) throw new Error('不支持流式传输。')
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          const jsonStr = line.substring(5).trim()
-          if (!jsonStr) continue
-          
-          try {
-            const data = JSON.parse(jsonStr)
-            if (data.results && data.results.length > 0) {
-              resultUrl.value = data.results[0].url
-            }
-            if (data.status === 'failed') {
-               throw new Error(data.failure_reason || data.error || '生成失败')
-            }
-          } catch (e) {
-            console.warn('Parse error for chunk:', jsonStr, e)
-          }
-        }
-      }
-    }
+    const result = await response.json()
     
-    // Handle any remaining buffer
-    if (buffer.startsWith('data:')) {
-      const jsonStr = buffer.substring(5).trim()
-      if (jsonStr) {
-        try {
-          const data = JSON.parse(jsonStr)
-          if (data.results && data.results.length > 0) {
-            resultUrl.value = data.results[0].url
-          }
-        } catch (e) {
-          console.warn('Parse error for final chunk:', jsonStr, e)
+    // 4. Parse Result
+    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+      const inlineData = result.candidates[0].content.parts[0].inlineData
+      if (inlineData && inlineData.data) {
+        // Convert Base64 response to Blob/URL
+        const byteCharacters = atob(inlineData.data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
         }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: inlineData.mime_type || 'image/png' }) // Default to png if mime_type missing
+        resultUrl.value = URL.createObjectURL(blob)
+      } else {
+         throw new Error('API返回结果中未找到图片数据')
       }
+    } else {
+      throw new Error('API返回格式不符合预期')
     }
 
     // Save to History
@@ -344,6 +324,11 @@ const addHLine = () => {
 const addVLine = () => {
   if (!resultImage.value) return
   vLines.value.push(resultImage.value.clientWidth / 2)
+}
+
+const resetLines = () => {
+  hLines.value = []
+  vLines.value = []
 }
 
 const startDrag = (type: 'h' | 'v', index: number, event: MouseEvent) => {
@@ -586,6 +571,15 @@ const sliceAndDownload = async () => {
 
 .neu-button.success:hover {
   background-color: #66BB6A !important;
+}
+
+.neu-button.danger {
+  background-color: #F44336 !important;
+  color: #fff !important;
+}
+
+.neu-button.danger:hover {
+  background-color: #EF5350 !important;
 }
 
 .neu-button.small {
