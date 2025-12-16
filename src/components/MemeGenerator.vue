@@ -1,6 +1,22 @@
 <template>
   <div class="meme-generator">
-    <el-container class="main-container">
+    <el-container direction="vertical" class="app-container">
+      <el-header class="neu-header">
+        <div class="logo">
+          <span class="logo-icon">🎨</span>
+          <span class="logo-text">表情包创作平台（需要增加积分联系vx：ns2250225小写）</span>
+        </div>
+        <div class="auth-buttons" v-if="!user">
+          <el-button class="neu-button small" @click="isLoginVisible = true">登录</el-button>
+          <el-button class="neu-button primary small" @click="isRegisterVisible = true">注册</el-button>
+        </div>
+        <div class="auth-buttons" v-else>
+          <span class="welcome-text">欢迎, {{ user.username }} (积分: {{ user.points }})</span>
+          <el-button v-if="user.role === 'admin'" class="neu-button secondary small" @click="openAdminPanel">管理后台</el-button>
+          <el-button class="neu-button danger small" @click="logout">退出</el-button>
+        </div>
+      </el-header>
+      <el-container class="main-container">
       <!-- Left Panel -->
       <el-aside width="400px" class="left-panel">
         <el-card class="neu-card">
@@ -133,7 +149,63 @@
           </div>
         </el-card>
       </el-main>
+      </el-container>
     </el-container>
+
+    <!-- Login Dialog -->
+    <el-dialog v-model="isLoginVisible" title="登录" width="30%" class="neu-dialog">
+      <el-form :model="loginForm" label-position="top">
+        <el-form-item label="用户名">
+          <el-input v-model="loginForm.username" class="neu-input" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input v-model="loginForm.password" type="password" class="neu-input" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button class="neu-button" @click="isLoginVisible = false">取消</el-button>
+          <el-button class="neu-button primary" @click="handleLogin">登录</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- Register Dialog -->
+    <el-dialog v-model="isRegisterVisible" title="注册" width="30%" class="neu-dialog">
+      <el-form :model="registerForm" label-position="top">
+        <el-form-item label="用户名">
+          <el-input v-model="registerForm.username" class="neu-input" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input v-model="registerForm.password" type="password" class="neu-input" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button class="neu-button" @click="isRegisterVisible = false">取消</el-button>
+          <el-button class="neu-button primary" @click="handleRegister">注册</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- Admin Dialog -->
+    <el-dialog v-model="isAdminVisible" title="用户管理" width="60%" class="neu-dialog">
+      <el-table :data="adminUserList" style="width: 100%" border class="neu-table">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="username" label="用户名" />
+        <el-table-column prop="role" label="角色" width="100" />
+        <el-table-column prop="points" label="积分" width="120">
+          <template #default="scope">
+            <el-input-number v-model="scope.row.points" :min="0" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="scope">
+            <el-button size="small" class="neu-button primary small" @click="saveUserPoints(scope.row)">保存</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -143,6 +215,142 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { ElMessage } from 'element-plus'
 import { saveMemeToHistory, getMemeHistory, deleteMemeFromHistory } from '../utils/db'
+
+// Auth State
+const user = ref<any>(null)
+const isLoginVisible = ref(false)
+const isRegisterVisible = ref(false)
+const loginForm = reactive({
+  username: '',
+  password: ''
+})
+const registerForm = reactive({
+  username: '',
+  password: ''
+})
+
+const isAdminVisible = ref(false)
+const adminUserList = ref<any[]>([])
+
+const API_BASE_URL = '/api'
+
+const refreshUser = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) return
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/me`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (response.ok) {
+      const userData = await response.json()
+      user.value = userData
+      localStorage.setItem('user', JSON.stringify(userData))
+    }
+  } catch (e) {
+    console.error('Failed to refresh user', e)
+  }
+}
+
+const openAdminPanel = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (response.ok) {
+      adminUserList.value = await response.json()
+      isAdminVisible.value = true
+    } else {
+      ElMessage.error('无法获取用户列表')
+    }
+  } catch (e) {
+    ElMessage.error('连接服务器失败')
+  }
+}
+
+const saveUserPoints = async (userData: any) => {
+  const token = localStorage.getItem('token')
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/update-points`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ userId: userData.id, points: userData.points })
+    })
+    if (response.ok) {
+      ElMessage.success('积分更新成功')
+      if (userData.id === user.value.id) {
+        refreshUser()
+      }
+    } else {
+      ElMessage.error('更新失败')
+    }
+  } catch (e) {
+    ElMessage.error('连接服务器失败')
+  }
+}
+
+const handleLogin = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginForm)
+    })
+    const data = await response.json()
+    if (response.ok) {
+      user.value = data.user
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      isLoginVisible.value = false
+      ElMessage.success('登录成功')
+    } else {
+      ElMessage.error(data.error || '登录失败')
+    }
+  } catch (e) {
+    ElMessage.error('连接服务器失败')
+  }
+}
+
+const handleRegister = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(registerForm)
+    })
+    const data = await response.json()
+    if (response.ok) {
+      ElMessage.success('注册成功，请登录')
+      isRegisterVisible.value = false
+      isLoginVisible.value = true
+    } else {
+      ElMessage.error(data.error || '注册失败')
+    }
+  } catch (e) {
+    ElMessage.error('连接服务器失败')
+  }
+}
+
+const logout = () => {
+  user.value = null
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  ElMessage.success('已退出登录')
+}
+
+// Check local storage on mount
+onMounted(() => {
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    user.value = JSON.parse(storedUser)
+    refreshUser() // Fetch latest points
+  }
+  refreshHistory()
+})
 
 const subject = ref('')
 const fileList = ref<any[]>([])
@@ -160,10 +368,6 @@ const historyList = ref<any[]>([])
 const refreshHistory = async () => {
   historyList.value = (await getMemeHistory()).reverse()
 }
-
-onMounted(() => {
-  refreshHistory()
-})
 
 const loadFromHistory = (item: any) => {
   if (resultUrl.value && resultUrl.value.startsWith('blob:')) {
@@ -207,6 +411,28 @@ const handleGenerate = async () => {
   vLines.value = []
   
   try {
+    if (!user.value) {
+      isLoginVisible.value = true
+      throw new Error('请先登录')
+    }
+
+    // 0. Deduct Points
+    const token = localStorage.getItem('token')
+    const deductRes = await fetch(`${API_BASE_URL}/deduct-points`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    
+    if (!deductRes.ok) {
+      const errData = await deductRes.json()
+      throw new Error(errData.error || '积分扣除失败')
+    }
+    
+    // Update local points
+    const deductData = await deductRes.json()
+    user.value.points = deductData.points
+    localStorage.setItem('user', JSON.stringify(user.value))
+
     if (!uploadedFile.value) {
       throw new Error('请选择参考图片')
     }
@@ -453,9 +679,75 @@ const sliceAndDownload = async () => {
   font-family: 'Courier New', Courier, monospace; /* Monospace for brutalist feel */
 }
 
-.main-container {
+.app-container {
   height: 100vh;
+}
+
+.neu-header {
+  height: 60px !important; /* Force height */
+  border-bottom: 3px solid #000 !important;
+  background-color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px !important;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.welcome-text {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+/* Neu-Brutalism Dialog */
+:deep(.neu-dialog) {
+  border: 3px solid #000 !important;
+  border-radius: 0 !important;
+  box-shadow: 6px 6px 0px 0px #000 !important;
+}
+
+:deep(.neu-dialog .el-dialog__header) {
+  border-bottom: 3px solid #000 !important;
+  background-color: #FFEB3B;
+  margin-right: 0 !important;
+  padding: 15px 20px;
+}
+
+:deep(.neu-dialog .el-dialog__title) {
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #000;
+}
+
+:deep(.neu-dialog .el-dialog__body) {
   padding: 20px;
+}
+
+:deep(.neu-dialog .el-dialog__footer) {
+  padding: 15px 20px;
+  border-top: 3px solid #000;
+  background-color: #f0f0f0;
+}
+
+.main-container {
+  flex: 1;
+  padding: 20px;
+  overflow: hidden;
 }
 
 .left-panel {
