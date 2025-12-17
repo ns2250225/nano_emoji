@@ -33,27 +33,38 @@ const verifyToken = (req, res, next) => {
 // Register Endpoint
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const hashedPassword = bcrypt.hashSync(password, 8);
-
-    const sql = 'INSERT INTO users (username, password, points, role) VALUES (?, ?, ?, ?)';
-    // Default points 30, default role user
-    const params = [username, hashedPassword, 30, 'user'];
-
-    db.run(sql, params, function (err) {
+    // Check if IP already registered
+    db.get('SELECT id FROM users WHERE ip_address = ?', [clientIp], (err, row) => {
         if (err) {
-            if (err.message.includes('UNIQUE constraint failed')) {
-                return res.status(400).json({ error: 'Username already exists' });
-            }
             return res.status(500).json({ error: err.message });
         }
-        res.json({
-            message: 'User registered successfully',
-            userId: this.lastID
+        if (row) {
+            return res.status(400).json({ error: 'Current IP has already registered' });
+        }
+
+        const hashedPassword = bcrypt.hashSync(password, 8);
+
+        const sql = 'INSERT INTO users (username, password, points, role, ip_address) VALUES (?, ?, ?, ?, ?)';
+        // Default points 30, default role user
+        const params = [username, hashedPassword, 30, 'user', clientIp];
+
+        db.run(sql, params, function (err) {
+            if (err) {
+                if (err.message.includes('UNIQUE constraint failed')) {
+                    return res.status(400).json({ error: 'Username already exists' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({
+                message: 'User registered successfully',
+                userId: this.lastID
+            });
         });
     });
 });

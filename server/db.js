@@ -16,6 +16,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
             password TEXT,
             role TEXT DEFAULT 'user',
             points INTEGER DEFAULT 30,
+            ip_address TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
     (err) => {
@@ -37,6 +38,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
                         // Create default admin if role column was just added or table is fresh
                         // But strictly, we might want to ensure at least one admin exists.
                         // For simplicity, I'll let the user manually update DB or I can insert a default admin.
+                    });
+                }
+                if (!columns.includes('ip_address')) {
+                    db.run("ALTER TABLE users ADD COLUMN ip_address TEXT", (err) => {
+                        if (!err) console.log("Added ip_address column");
                     });
                 }
             });
