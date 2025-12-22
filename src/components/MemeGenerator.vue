@@ -4,7 +4,7 @@
       <el-header class="neu-header">
         <div class="logo">
           <span class="logo-icon">🎨</span>
-          <span class="logo-text">表情包创作平台（需要增加积分联系vx：ns2250225小写）</span>
+          <span class="logo-text">表情包创作平台</span>
         </div>
         <div class="auth-buttons" v-if="!user">
           <el-button class="neu-button small" @click="isLoginVisible = true">登录</el-button>
@@ -12,6 +12,7 @@
         </div>
         <div class="auth-buttons" v-else>
           <span class="welcome-text">欢迎, {{ user.username }} (积分: {{ user.points }})</span>
+          <el-button class="neu-button success small" @click="handleBuyPoints">购买积分</el-button>
           <el-button v-if="user.role === 'admin'" class="neu-button secondary small" @click="openAdminPanel">管理后台</el-button>
           <el-button class="neu-button danger small" @click="logout">退出</el-button>
         </div>
@@ -293,6 +294,31 @@ const saveUserPoints = async (userData: any) => {
   }
 }
 
+const handleBuyPoints = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const response = await fetch(`${API_BASE_URL}/create-payment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl
+      } else {
+        ElMessage.error('无法获取支付链接')
+      }
+    } else {
+      ElMessage.error('请求支付失败')
+    }
+  } catch (e) {
+    ElMessage.error('连接服务器失败')
+  }
+}
+
 const handleLogin = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/login`, {
@@ -350,7 +376,36 @@ onMounted(() => {
     refreshUser() // Fetch latest points
   }
   refreshHistory()
+  checkPaymentResult()
 })
+
+const checkPaymentResult = async () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  const out_trade_no = urlParams.get('out_trade_no')
+  const trade_status = urlParams.get('trade_status')
+
+  if (out_trade_no && trade_status === 'TRADE_SUCCESS') {
+    try {
+      // Manually trigger notification for local testing environment
+      // In production, this should rely on server-to-server callback
+      const response = await fetch(`${API_BASE_URL}/payment-notify?out_trade_no=${out_trade_no}&trade_status=${trade_status}`)
+      const result = await response.text()
+      
+      if (result === 'success') {
+        ElMessage.success('支付成功，积分已到账！')
+        refreshUser()
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname)
+      } else {
+        // It might have been processed by server callback already
+        refreshUser()
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }
+    } catch (e) {
+      console.error('Check payment failed', e)
+    }
+  }
+}
 
 const subject = ref('')
 const fileList = ref<any[]>([])

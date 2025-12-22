@@ -48,6 +48,21 @@ const db = new sqlite3.Database(dbPath, (err) => {
             });
         }
     });
+
+    // Create orders table
+    db.run(`CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            out_trade_no TEXT UNIQUE,
+            amount INTEGER,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+    (err) => {
+        if (err) {
+            console.error('Error creating orders table: ' + err.message);
+        }
+    });
   }
 });
 

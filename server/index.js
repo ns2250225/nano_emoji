@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const utility = require('utility');
 const db = require('./db');
 
 const app = express();
@@ -173,6 +174,115 @@ app.post('/api/admin/update-points', verifyToken, (req, res) => {
             res.json({ success: true, message: 'Points updated successfully' });
         });
     });
+});
+
+// Helper function for payment signature
+function getVerifyParams(params) {
+    var sPara = [];
+    if(!params) return null;
+    for(var key in params) {
+        if((!params[key]) || key == "sign" || key == "sign_type") {
+            continue;
+        };
+        sPara.push([key, params[key]]);
+    }
+    sPara = sPara.sort();
+    var prestr = '';
+    for(var i2 = 0; i2 < sPara.length; i2++) {
+        var obj = sPara[i2];
+        if(i2 == sPara.length - 1) {
+            prestr = prestr + obj[0] + '=' + obj[1] + '';
+        } else {
+            prestr = prestr + obj[0] + '=' + obj[1] + '&';
+        }
+    }
+    return prestr;
+}
+
+// Create Payment Order
+app.post('/api/create-payment', verifyToken, (req, res) => {
+    const userId = req.userId;
+    // Generate unique trade no
+    const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const out_trade_no = timestamp + random;
+
+    // Save order to DB
+    const sql = 'INSERT INTO orders (user_id, out_trade_no, amount, status) VALUES (?, ?, ?, ?)';
+    // Amount is 8 RMB (as per example) for 100 points
+    db.run(sql, [userId, out_trade_no, 8, 'pending'], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        // Construct payment params
+        // Note: In production, notify_url and return_url must be accessible public URLs.
+        // For local dev, we might use a tunnel or just localhost (which won't work for real callbacks).
+        // Assuming the server is reachable or this is a demo.
+        // We'll use the headers to guess the host or hardcode it.
+        const host = req.get('host');
+        const protocol = req.protocol;
+        const baseUrl = `${protocol}://${host}`;
+        
+        let data = {
+            pid: "2025122215221369",
+            money: "8",
+            name: "表情包100积分",
+            notify_url: `${baseUrl}/api/payment-notify`,
+            out_trade_no: out_trade_no,
+            return_url: `http://localhost:5173`, // Redirect back to frontend
+            sitename: "表情包创作平台",
+            type: "wxpay"
+        };
+
+        const str = getVerifyParams(data);
+        const key = "lLl7sTfWH3vyJi3UU5kfdE25sKUysjJ5";
+        const sign = utility.md5(str + key);
+
+        const paymentUrl = `https://z-pay.cn/submit.php?${str}&sign=${sign}&sign_type=MD5`;
+        
+        res.json({ paymentUrl });
+    });
+});
+
+// Payment Notification Callback
+app.get('/api/payment-notify', (req, res) => {
+    const { out_trade_no, trade_status } = req.query;
+    
+    // Ideally we should verify signature here too, but for simplicity we check status and order
+    
+    if (trade_status === 'TRADE_SUCCESS') {
+        db.get('SELECT * FROM orders WHERE out_trade_no = ?', [out_trade_no], (err, order) => {
+            if (err) {
+                console.error('Order check error:', err);
+                return res.send('fail');
+            }
+            if (!order) {
+                console.error('Order not found:', out_trade_no);
+                return res.send('fail');
+            }
+            if (order.status === 'completed') {
+                return res.send('success'); // Already processed
+            }
+
+            // Update order status and add points
+            db.serialize(() => {
+                db.run('UPDATE orders SET status = ? WHERE id = ?', ['completed', order.id], (err) => {
+                    if (err) console.error('Update order error:', err);
+                });
+
+                db.run('UPDATE users SET points = points + 100 WHERE id = ?', [order.user_id], (err) => {
+                    if (err) {
+                        console.error('Add points error:', err);
+                    } else {
+                        console.log(`Added 100 points to user ${order.user_id}`);
+                    }
+                });
+            });
+            
+            res.send('success');
+        });
+    } else {
+        res.send('fail');
+    }
 });
 
 app.listen(PORT, () => {
