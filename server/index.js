@@ -215,20 +215,20 @@ app.post('/api/create-payment', verifyToken, (req, res) => {
 
         // Construct payment params
         // Note: In production, notify_url and return_url must be accessible public URLs.
-        // For local dev, we might use a tunnel or just localhost (which won't work for real callbacks).
-        // Assuming the server is reachable or this is a demo.
-        // We'll use the headers to guess the host or hardcode it.
-        const host = req.get('host');
-        const protocol = req.protocol;
-        const baseUrl = `${protocol}://${host}`;
         
+        // Use user-specified domain for notify_url in production/formal environment
+        const notifyBaseUrl = 'http://layman.xin';
+        // For local dev redirection, we can still use localhost if needed, or use the public domain.
+        // Assuming layman.xin is also the frontend domain for production.
+        const returnUrl = 'http://layman.xin';
+
         let data = {
             pid: "2025122215221369",
             money: "8",
             name: "表情包100积分",
-            notify_url: `${baseUrl}/api/payment-notify`,
+            notify_url: `${notifyBaseUrl}/api/payment-notify`,
             out_trade_no: out_trade_no,
-            return_url: `http://localhost:5173`, // Redirect back to frontend
+            return_url: returnUrl, // Redirect back to frontend
             sitename: "表情包创作平台",
             type: "wxpay"
         };
