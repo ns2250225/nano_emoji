@@ -1074,13 +1074,13 @@ const sliceAndDownload = async () => {
 
 @media (max-width: 768px) {
   .meme-generator {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    height: auto !important;
+    min-height: 100vh;
+    overflow-y: visible !important;
   }
 
   .app-container {
     height: auto !important;
-    min-height: auto !important;
     overflow: visible !important;
   }
 
