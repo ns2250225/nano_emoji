@@ -32,6 +32,13 @@
               <el-input v-model="subject" placeholder="输入主题 (例如: 股票)" class="neu-input" />
             </el-form-item>
 
+            <el-form-item label="风格">
+              <el-radio-group v-model="bodyStyle">
+                <el-radio label="半身像">半身像</el-radio>
+                <el-radio label="全身像">全身像</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
             <el-form-item label="参考角色图">
               <el-upload
                 class="upload-demo"
@@ -408,6 +415,7 @@ const checkPaymentResult = async () => {
 }
 
 const subject = ref('')
+const bodyStyle = ref('半身像')
 const fileList = ref<any[]>([])
 const uploadedFile = ref<File | null>(null)
 const uploadedUrl = ref('')
@@ -513,7 +521,7 @@ const handleGenerate = async () => {
     })
 
     // 2. Prepare Payload
-    const prompt = `为我生成图中角色的绘制 Q 版的，LINE 风格的半身像表情包，注意头饰要正确，彩色手绘风格，使用 4x6 布局，涵盖各种各样的关于【${subject.value}】的语句，或是一些有关【${subject.value}】的 meme，其他需求：不要原图复制。所有标注为手写简体中文。`
+    const prompt = `为我生成图中角色的绘制 Q 版的，LINE 风格的${bodyStyle.value}表情包，注意头饰要正确，彩色手绘风格，使用 4x6 布局，涵盖各种各样的关于【${subject.value}】的语句，或是一些有关【${subject.value}】的 meme，其他需求：不要原图复制。所有标注为手写简体中文。全身像要显示整个身子而且头大身小。`
     
     const payload = {
       contents: [{
@@ -1062,5 +1070,58 @@ const sliceAndDownload = async () => {
   align-items: center;
   height: 100%;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    height: auto !important;
+    min-height: 100vh;
+  }
+
+  .main-container {
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .left-panel {
+    width: 100% !important;
+    padding-right: 0 !important;
+    margin-bottom: 20px;
+  }
+
+  .right-panel {
+    height: auto !important;
+    min-height: 500px;
+    overflow: visible !important;
+  }
+
+  .neu-header {
+    padding: 0 10px !important;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+    display: none; /* Hide text on small screens to save space */
+  }
+
+  .welcome-text {
+    /* display: none;  Remove this as we want to show points */
+    font-size: 12px;
+  }
+  
+  .user-name {
+    display: none;
+  }
+  
+  .user-points {
+    display: inline-block;
+    margin-right: 5px;
+  }
+
+  .auth-buttons .neu-button {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+  }
 }
 </style>
