@@ -118,6 +118,7 @@
               <div class="controls" v-if="resultUrl">
                 <el-button class="neu-button small" size="small" @click="addHLine">添加水平线</el-button>
                 <el-button class="neu-button small" size="small" @click="addVLine">添加垂直线</el-button>
+                <el-button class="neu-button warning small" size="small" @click="autoSlice">自动分割</el-button>
                 <el-button class="neu-button danger small" size="small" @click="resetLines">重置分隔线</el-button>
                 <el-button class="neu-button success small" size="small" @click="sliceAndDownload">切割并下载</el-button>
               </div>
@@ -441,6 +442,9 @@ const loadFromHistory = (item: any) => {
   // Reset lines
   hLines.value = []
   vLines.value = []
+  
+  // Wait for image to load before auto slicing or enabling controls
+  // The @load="initSlicing" on the img tag will handle any post-load logic
 }
 
 const deleteHistory = async (id: number) => {
@@ -618,6 +622,31 @@ const addVLine = () => {
 const resetLines = () => {
   hLines.value = []
   vLines.value = []
+}
+
+const autoSlice = () => {
+  if (!resultImage.value) return
+  
+  // Reset lines first
+  hLines.value = []
+  vLines.value = []
+  
+  const height = resultImage.value.clientHeight
+  const width = resultImage.value.clientWidth
+  
+  // 4 rows -> 3 lines
+  const rowHeight = height / 4
+  for (let i = 1; i < 4; i++) {
+    hLines.value.push(rowHeight * i)
+  }
+  
+  // 6 columns -> 5 lines
+  const colWidth = width / 6
+  for (let i = 1; i < 6; i++) {
+    vLines.value.push(colWidth * i)
+  }
+  
+  ElMessage.success('已自动按 4x6 布局分割，您可以手动微调')
 }
 
 const startDrag = (type: 'h' | 'v', index: number, event: MouseEvent) => {
@@ -937,6 +966,15 @@ const sliceAndDownload = async () => {
   background-color: #EF5350 !important;
 }
 
+.neu-button.warning {
+  background-color: #FF9800 !important; /* Orange */
+  color: #000 !important;
+}
+
+.neu-button.warning:hover {
+  background-color: #FFB74D !important;
+}
+
 .neu-button.small {
   padding: 8px 15px !important;
   font-size: 12px !important;
@@ -1000,6 +1038,14 @@ const sliceAndDownload = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.controls {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .generate-btn {
