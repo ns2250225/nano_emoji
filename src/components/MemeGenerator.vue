@@ -1073,15 +1073,22 @@ const sliceAndDownload = async () => {
 }
 
 @media (max-width: 768px) {
+  .meme-generator {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .app-container {
     height: auto !important;
-    min-height: 100vh;
+    min-height: auto !important;
+    overflow: visible !important;
   }
 
   .main-container {
     flex-direction: column !important;
     height: auto !important;
     overflow: visible !important;
+    display: block !important;
   }
 
   .left-panel {
@@ -1094,6 +1101,23 @@ const sliceAndDownload = async () => {
     height: auto !important;
     min-height: 500px;
     overflow: visible !important;
+    padding-bottom: 20px !important;
+  }
+
+  .result-card {
+    height: auto !important;
+    min-height: 500px;
+  }
+
+  .result-card :deep(.el-card__body) {
+    height: auto !important;
+    min-height: 400px;
+    overflow: visible !important;
+  }
+
+  .image-container-wrapper {
+    height: auto !important;
+    min-height: 400px;
   }
 
   .neu-header {
@@ -1122,6 +1146,12 @@ const sliceAndDownload = async () => {
   .auth-buttons .neu-button {
     padding: 4px 8px !important;
     font-size: 12px !important;
+  }
+
+  /* Adjust dialog width for mobile */
+  :deep(.neu-dialog) {
+    width: 90% !important;
+    margin-top: 20vh !important;
   }
 }
 </style>
