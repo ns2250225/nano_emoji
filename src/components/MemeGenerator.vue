@@ -551,6 +551,12 @@ const downloadPreview = () => {
 const copyPreview = async () => {
   if (!previewUrl.value) return
   
+  // Check if Clipboard API is available
+  if (!navigator.clipboard || !navigator.clipboard.write) {
+    ElMessage.warning('您的浏览器不支持自动复制图片，请右键图片选择“复制图片”')
+    return
+  }
+  
   try {
     const response = await fetch(previewUrl.value)
     const blob = await response.blob()
