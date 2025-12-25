@@ -129,6 +129,14 @@
             <div class="image-container" v-if="resultUrl">
               <img :src="resultUrl" ref="resultImage" class="result-image" @load="initSlicing" crossorigin="anonymous"/>
               
+              <div
+                v-for="(rect, idx) in regions"
+                :key="'r-' + idx"
+                class="region-overlay"
+                :style="{ top: rect.top + 'px', left: rect.left + 'px', width: rect.width + 'px', height: rect.height + 'px' }"
+                @click="handleRegionClick(rect)"
+              ></div>
+
               <!-- Horizontal Lines -->
               <div
                 v-for="(line, index) in hLines"
@@ -215,11 +223,23 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+    <!-- Preview Dialog -->
+    <el-dialog v-model="previewVisible" title="预览" width="50%" class="neu-dialog preview-dialog">
+      <div class="preview-container">
+        <img :src="previewUrl" class="preview-image" />
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button class="neu-button" @click="previewVisible = false">关闭</el-button>
+          <el-button class="neu-button primary" @click="downloadPreview">下载</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { ElMessage } from 'element-plus'
@@ -376,6 +396,13 @@ const logout = () => {
   ElMessage.success('已退出登录')
 }
 
+const updateImageDimensions = () => {
+  if (resultImage.value) {
+    imgWidth.value = resultImage.value.clientWidth
+    imgHeight.value = resultImage.value.clientHeight
+  }
+}
+
 // Check local storage on mount
 onMounted(() => {
   const storedUser = localStorage.getItem('user')
@@ -385,6 +412,11 @@ onMounted(() => {
   }
   refreshHistory()
   checkPaymentResult()
+  window.addEventListener('resize', updateImageDimensions)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateImageDimensions)
 })
 
 const checkPaymentResult = async () => {
@@ -425,6 +457,8 @@ const loading = ref(false)
 const error = ref('')
 
 const resultImage = ref<HTMLImageElement | null>(null)
+const imgWidth = ref(0)
+const imgHeight = ref(0)
 
 // History State
 const historyList = ref<any[]>([])
@@ -460,6 +494,81 @@ const dragging = reactive({
   active: false,
   type: '' as 'h' | 'v',
   index: -1
+})
+
+const handleRegionClick = async (rect: any) => {
+  if (!resultImage.value) return
+
+  const img = resultImage.value
+  const naturalWidth = img.naturalWidth
+  const naturalHeight = img.naturalHeight
+  const displayWidth = img.clientWidth
+  const displayHeight = img.clientHeight
+  
+  const scaleX = naturalWidth / displayWidth
+  const scaleY = naturalHeight / displayHeight
+
+  const x = rect.left * scaleX
+  const y = rect.top * scaleY
+  const w = rect.width * scaleX
+  const h = rect.height * scaleY
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const sourceImage = new Image()
+  sourceImage.crossOrigin = "Anonymous"
+  sourceImage.src = resultUrl.value
+  
+  await new Promise((resolve, reject) => {
+    sourceImage.onload = resolve
+    sourceImage.onerror = reject
+  })
+
+  ctx.drawImage(sourceImage, x, y, w, h, 0, 0, w, h)
+  
+  canvas.toBlob((blob) => {
+    if (blob) {
+      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+      previewUrl.value = URL.createObjectURL(blob)
+      previewVisible.value = true
+    }
+  }, 'image/png')
+}
+
+const downloadPreview = () => {
+  if (previewUrl.value) {
+    saveAs(previewUrl.value, `slice_${Date.now()}.png`)
+  }
+}
+
+const previewVisible = ref(false)
+const previewUrl = ref('')
+
+const regions = computed(() => {
+  if (!imgWidth.value || !imgHeight.value) return []
+
+  const sortedHLines = [...hLines.value].sort((a, b) => a - b)
+  const sortedVLines = [...vLines.value].sort((a, b) => a - b)
+
+  const ys = [0, ...sortedHLines, imgHeight.value]
+  const xs = [0, ...sortedVLines, imgWidth.value]
+
+  const rects = []
+  for (let i = 0; i < ys.length - 1; i++) {
+    for (let j = 0; j < xs.length - 1; j++) {
+      rects.push({
+        top: ys[i],
+        left: xs[j],
+        width: xs[j+1]! - xs[j]!,
+        height: ys[i+1]! - ys[i]!
+      })
+    }
+  }
+  return rects
 })
 
 const handleFileChange = (file: any) => {
@@ -606,7 +715,10 @@ const handleGenerate = async () => {
 
 // Slicing Logic
 const initSlicing = () => {
-  // Initialize default lines if needed, or just wait for user
+  if (resultImage.value) {
+    imgWidth.value = resultImage.value.clientWidth
+    imgHeight.value = resultImage.value.clientHeight
+  }
 }
 
 const addHLine = () => {
@@ -1199,5 +1311,34 @@ const sliceAndDownload = async () => {
     width: 90% !important;
     margin-top: 20vh !important;
   }
+}
+
+.region-overlay {
+  position: absolute;
+  z-index: 5;
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0);
+  transition: background-color 0.2s;
+}
+
+.region-overlay:hover {
+  background-color: rgba(255, 235, 59, 0.3); /* Yellow highlight */
+  border: 2px dashed #000;
+}
+
+.preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background-color: #f0f0f0;
+  border: 3px solid #000;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 2px solid #000;
 }
 </style>
