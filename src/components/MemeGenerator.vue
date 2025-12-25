@@ -45,9 +45,7 @@
                 action="#"
                 :auto-upload="false"
                 :on-change="handleFileChange"
-                :limit="1"
-                :file-list="fileList"
-                list-type="picture"
+                :show-file-list="false"
               >
                 <el-button class="neu-button secondary">选择图片</el-button>
                 <template #tip>
@@ -56,6 +54,10 @@
                   </div>
                 </template>
               </el-upload>
+              <div v-if="fileList.length > 0" class="file-preview">
+                 <div class="file-name">{{ fileList[0].name }}</div>
+                 <img v-if="uploadedUrl" :src="uploadedUrl" class="uploaded-thumb" />
+              </div>
             </el-form-item>
 
             <el-button 
@@ -231,6 +233,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button class="neu-button" @click="previewVisible = false">关闭</el-button>
+          <el-button class="neu-button success" @click="copyPreview">复制</el-button>
           <el-button class="neu-button primary" @click="downloadPreview">下载</el-button>
         </span>
       </template>
@@ -545,6 +548,26 @@ const downloadPreview = () => {
   }
 }
 
+const copyPreview = async () => {
+  if (!previewUrl.value) return
+  
+  try {
+    const response = await fetch(previewUrl.value)
+    const blob = await response.blob()
+    
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        [blob.type]: blob
+      })
+    ])
+    
+    ElMessage.success('图片已复制到剪贴板')
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('复制失败，请重试')
+  }
+}
+
 const previewVisible = ref(false)
 const previewUrl = ref('')
 
@@ -575,7 +598,10 @@ const handleFileChange = (file: any) => {
   uploadedFile.value = file.raw
   fileList.value = [file]
   // Reset previous state
-  uploadedUrl.value = ''
+  if (uploadedUrl.value) {
+    URL.revokeObjectURL(uploadedUrl.value)
+  }
+  uploadedUrl.value = URL.createObjectURL(file.raw)
   resultUrl.value = ''
   error.value = ''
 }
@@ -1340,5 +1366,31 @@ const sliceAndDownload = async () => {
   max-height: 60vh;
   object-fit: contain;
   border: 2px solid #000;
+}
+
+.file-preview {
+  margin-top: 10px;
+  border: 2px solid #000;
+  padding: 10px;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.uploaded-thumb {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border: 1px solid #000;
+}
+
+.file-name {
+  font-size: 12px;
+  font-weight: bold;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
